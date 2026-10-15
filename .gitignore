@@ -1,0 +1,7 @@
+
+# env
+.env
+CLAUDE.md
+node_modules/
+dist/
+coverage/
