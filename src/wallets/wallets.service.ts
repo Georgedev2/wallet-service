@@ -1,11 +1,21 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { DatabaseError, Pool, PoolClient } from 'pg';
 import { AuthUser } from '../common/decorators/current-user.decorator';
-import { BusinessRuleError, ConflictError, NotFoundError } from '../common/errors/domain.error';
+import {
+  BusinessRuleError,
+  ConflictError,
+  ForbiddenError,
+  NotFoundError,
+} from '../common/errors/domain.error';
 import { formatKobo, parseAmount } from '../common/utils/money';
 import { generateReference } from '../common/utils/reference';
 import { requestHash } from '../common/utils/request-hash';
 import { PG_POOL } from '../database/database.constants';
+import {
+  IDEMPOTENCY_CONSTRAINT,
+  PG_NUMERIC_OUT_OF_RANGE,
+  PG_UNIQUE_VIOLATION,
+} from '../database/pg-errors';
 import { withTransaction } from '../database/with-transaction';
 import { HistoryRow, Wallet, WalletsRepository } from './wallets.repository';
 
@@ -36,10 +46,6 @@ export interface FundingResult {
   balanceAfter: string;
   createdAt: Date;
 }
-
-const UNIQUE_VIOLATION = '23505';
-const NUMERIC_OUT_OF_RANGE = '22003';
-const IDEMPOTENCY_CONSTRAINT = 'transactions_initiated_by_idempotency_key_key';
 
 const walletNotFound = () => new NotFoundError('WALLET_NOT_FOUND', 'Wallet not found');
 const keyReused = () =>
@@ -129,7 +135,7 @@ export class WalletsService {
 
         // c. Validate.
         if (wallet.ownerStatus === 'blocked') {
-          throw new BusinessRuleError('USER_BLOCKED', 'The wallet owner is blocked');
+          throw new ForbiddenError('USER_BLOCKED', 'The wallet owner is blocked');
         }
         if (wallet.walletStatus === 'frozen') {
           throw new BusinessRuleError('WALLET_FROZEN', 'The wallet is frozen');
@@ -180,10 +186,10 @@ export class WalletsService {
       }
       // Backstop: the same key sent for two different wallets at once. They lock
       // different rows, so both pass the check above and the unique index decides.
-      if (err.code === UNIQUE_VIOLATION && err.constraint === IDEMPOTENCY_CONSTRAINT) {
+      if (err.code === PG_UNIQUE_VIOLATION && err.constraint === IDEMPOTENCY_CONSTRAINT) {
         return this.replayAfterRace(adminId, idempotencyKey, hash);
       }
-      if (err.code === NUMERIC_OUT_OF_RANGE) {
+      if (err.code === PG_NUMERIC_OUT_OF_RANGE) {
         throw new BusinessRuleError(
           'BALANCE_LIMIT_EXCEEDED',
           'The wallet balance would be too large',

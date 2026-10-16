@@ -191,13 +191,13 @@ describe('wallets and funding (e2e)', () => {
       expect(await balanceOf(b.walletId)).toBe('0');
     });
 
-    it('rejects a wallet whose owner is blocked with 422 USER_BLOCKED', async () => {
+    it('rejects a wallet whose owner is blocked with 403 USER_BLOCKED', async () => {
       const { userId, walletId } = await createUser();
       await pool.query(`UPDATE users SET status = 'blocked', blocked_at = now() WHERE id = $1`, [
         userId,
       ]);
 
-      const res = await fund(walletId, { amount: '100' }).expect(422);
+      const res = await fund(walletId, { amount: '100' }).expect(403);
       expect(res.body.error.code).toBe('USER_BLOCKED');
       expect(await transactionCount(walletId)).toBe(0);
     });

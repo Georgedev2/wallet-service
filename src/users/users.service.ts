@@ -10,12 +10,12 @@ import {
 } from '../common/errors/domain.error';
 import { normalizeBvn, normalizeEmail, normalizePhone } from '../common/utils/normalize';
 import { PG_POOL } from '../database/database.constants';
+import { PG_UNIQUE_VIOLATION } from '../database/pg-errors';
 import { withTransaction } from '../database/with-transaction';
 import { WalletSummary, WalletsRepository } from '../wallets/wallets.repository';
 import { SignupDto } from './users.dto';
 import { PublicUser, StatusEvent, UsersRepository } from './users.repository';
 
-const UNIQUE_VIOLATION = '23505';
 const USER_UNIQUE_CONSTRAINTS = new Set(['users_email_uq', 'users_phone_uq', 'users_bvn_uq']);
 
 @Injectable()
@@ -59,7 +59,7 @@ export class UsersService {
     } catch (err) {
       if (
         err instanceof DatabaseError &&
-        err.code === UNIQUE_VIOLATION &&
+        err.code === PG_UNIQUE_VIOLATION &&
         USER_UNIQUE_CONSTRAINTS.has(err.constraint ?? '')
       ) {
         throw new ConflictError(

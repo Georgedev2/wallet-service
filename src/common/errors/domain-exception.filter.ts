@@ -8,13 +8,12 @@ import {
 } from '@nestjs/common';
 import { Response } from 'express';
 import { DatabaseError } from 'pg';
+import { PG_UNIQUE_VIOLATION } from '../../database/pg-errors';
 import { DomainError } from './domain.error';
 
 interface ErrorBody {
   error: { code: string; message: string };
 }
-
-const UNIQUE_VIOLATION = '23505';
 
 @Catch()
 export class DomainExceptionFilter implements ExceptionFilter {
@@ -42,7 +41,7 @@ export class DomainExceptionFilter implements ExceptionFilter {
 
     // A unique index caught a duplicate that a pre-check missed (e.g. two
     // signups racing). Constraint names stay in the logs, not the response.
-    if (exception instanceof DatabaseError && exception.code === UNIQUE_VIOLATION) {
+    if (exception instanceof DatabaseError && exception.code === PG_UNIQUE_VIOLATION) {
       this.logger.warn(`Unique violation: ${exception.constraint ?? 'unknown constraint'}`);
       return [HttpStatus.CONFLICT, errorBody('CONFLICT', 'Resource already exists')];
     }

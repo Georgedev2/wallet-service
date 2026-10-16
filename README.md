@@ -102,6 +102,21 @@ for the next page. Pages are stable: new entries never shift or repeat later pag
 Each item: `reference`, `type` (`funding` | `transfer`), `direction` (`credit` | `debit`), `amount`,
 `balanceAfter`, `counterpartyWalletId` (null for funding), `narration`, `createdAt`.
 
+### `POST /transfers` (authenticated, `Idempotency-Key` required)
+
+Body: `{ "sourceWalletId", "destinationWalletId", "amount": "2500", "narration"?: "..." }` (narration max 140).
+The sender is always the token's user; the source wallet must be theirs.
+
+Returns `201` with `{ "reference", "amount", "currency", "sourceWalletId", "destinationWalletId", "narration",
+"status", "balanceAfter", "createdAt", "replayed": false }`. `balanceAfter` is the sender's new balance.
+
+The same key with the same body returns `200` with the original body and `"replayed": true`; money moves once.
+The same key with a different body gets `409 IDEMPOTENCY_KEY_REUSED`. Keys are scoped per user.
+
+Errors: `404 WALLET_NOT_FOUND`, `403 FORBIDDEN` (not your wallet), `403 USER_BLOCKED` (sender or recipient),
+`422 WALLET_FROZEN | CURRENCY_MISMATCH | INSUFFICIENT_FUNDS | SAME_WALLET`, `503 TRY_AGAIN` (a wallet stayed
+locked for 5s; safe to retry with the same key), `400 INVALID_AMOUNT | VALIDATION_ERROR | MISSING_IDEMPOTENCY_KEY`, `401`.
+
 ### `POST /admin/wallets/:id/fund` (admin, `Idempotency-Key` required)
 
 Body: `{ "amount": "150000", "narration"?: "..." }` (narration max 140 characters).
@@ -111,7 +126,7 @@ Returns `201` with `{ "reference", "type": "funding", "walletId", "amount", "cur
 Repeating the request with the same key returns `200` with the original body and `"replayed": true`; the
 wallet is credited once. The same key with a different wallet, amount or narration gets `409 IDEMPOTENCY_KEY_REUSED`.
 
-Errors: `404 WALLET_NOT_FOUND`, `422 USER_BLOCKED` (owner blocked), `422 WALLET_FROZEN`,
+Errors: `404 WALLET_NOT_FOUND`, `403 USER_BLOCKED` (owner blocked), `422 WALLET_FROZEN`,
 `400 INVALID_AMOUNT | MISSING_IDEMPOTENCY_KEY | INVALID_IDEMPOTENCY_KEY`, `401`, `403`.
 
 ### `POST /admin/blacklist` (admin)

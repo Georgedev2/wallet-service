@@ -9,6 +9,7 @@ import { BlacklistModule } from './blacklist/blacklist.module';
 import { Env, envSchema, envValidationOptions } from './config/configuration';
 import { buildLoggerParams } from './config/logger.config';
 import { DatabaseModule } from './database/database.module';
+import { TransfersModule } from './transfers/transfers.module';
 import { UsersModule } from './users/users.module';
 import { WalletsModule } from './wallets/wallets.module';
 
@@ -30,6 +31,7 @@ import { WalletsModule } from './wallets/wallets.module';
     BlacklistModule,
     UsersModule,
     WalletsModule,
+    TransfersModule,
   ],
   controllers: [AppController],
   providers: [AppService],
