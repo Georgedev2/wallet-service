@@ -1,4 +1,5 @@
 import { ExecutionContext, createParamDecorator } from '@nestjs/common';
+import { ApiHeader } from '@nestjs/swagger';
 import { Request } from 'express';
 import { DomainError } from '../errors/domain.error';
 
@@ -22,3 +23,13 @@ export function idempotencyKeyFromContext(ctx: ExecutionContext): string {
 export const IdempotencyKey = createParamDecorator((_data: unknown, ctx: ExecutionContext) =>
   idempotencyKeyFromContext(ctx),
 );
+
+/** Documents the Idempotency-Key header in Swagger. */
+export const ApiIdempotencyKey = () =>
+  ApiHeader({
+    name: 'Idempotency-Key',
+    required: true,
+    description:
+      '8-128 characters of A-Z a-z 0-9 _ -. Use a new key per new money movement; ' +
+      'the same key and body replays the original result (200, replayed: true).',
+  });

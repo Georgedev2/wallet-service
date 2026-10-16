@@ -37,6 +37,15 @@ Compose maps Postgres to host port **5433**, so it doesn't clash with a local Po
 
 The app and the migration runner both validate the environment at startup, and exit if it's invalid.
 
+## API docs (Swagger)
+
+Interactive docs are at **`/docs`** (for example http://localhost:3600/docs); the OpenAPI JSON is at `/docs-json`.
+To try authenticated endpoints: call `POST /auth/login`, copy `data.accessToken`, click **Authorize** and paste it.
+Money endpoints need a fresh `Idempotency-Key` for each new movement.
+
+Request schemas come from the DTOs through the `@nestjs/swagger` CLI plugin (`nest-cli.json`), so restart
+`npm run start:dev` after changing plugin settings. For a request-by-request walkthrough, see `rest-client/`.
+
 ## API conventions
 
 - Success: `{ "data": ... }`. Error: `{ "error": { "code": "INSUFFICIENT_FUNDS", "message": "..." } }`.

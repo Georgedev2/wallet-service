@@ -10,6 +10,7 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class WalletIdParams {
   @IsUUID('all', { message: 'id must be a UUID' })
@@ -17,6 +18,7 @@ export class WalletIdParams {
 }
 
 export class HistoryQuery {
+  @ApiPropertyOptional({ default: 20, minimum: 1, maximum: 100 })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -25,6 +27,7 @@ export class HistoryQuery {
   limit: number = 20;
 
   // The nextCursor from the previous page: a ledger entry id.
+  @ApiPropertyOptional({ description: 'The nextCursor from the previous page' })
   @IsOptional()
   @Matches(/^[1-9]\d{0,17}$/, { message: 'cursor is invalid' })
   cursor?: string;
@@ -32,9 +35,14 @@ export class HistoryQuery {
 
 export class FundWalletDto {
   // Kobo as a string of digits; checked by parseAmount (400 INVALID_AMOUNT).
+  @ApiProperty({
+    example: '500000',
+    description: 'Kobo as a string of digits ("500000" = ₦5,000.00)',
+  })
   @IsString()
   amount!: string;
 
+  @ApiPropertyOptional({ example: 'Initial funding', maxLength: 140 })
   @IsOptional()
   @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
