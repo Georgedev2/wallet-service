@@ -1,4 +1,5 @@
 import { INestApplication } from '@nestjs/common';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
 import * as request from 'supertest';
 import { AppModule } from '../src/app.module';
@@ -10,7 +11,7 @@ describe('Swagger docs (e2e)', () => {
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
-    app = configureApp(moduleRef.createNestApplication({ logger: false }));
+    app = configureApp(moduleRef.createNestApplication<NestExpressApplication>({ logger: false }));
     // Same order as main.ts: docs routes must be registered before init adds the 404 handler.
     setupSwagger(app);
     await app.init();

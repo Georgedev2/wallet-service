@@ -21,6 +21,7 @@ export const newKey = () => `key-${randomUUID()}`;
 export class MoneyKit {
   private readonly userIds: string[] = [];
   private readonly walletIds: string[] = [];
+  private appClosed = false;
 
   private constructor(
     readonly app: INestApplication,
@@ -59,7 +60,15 @@ export class MoneyKit {
     await this.pool.query('DELETE FROM wallets WHERE user_id = ANY($1::uuid[])', [this.userIds]);
     await this.pool.query('DELETE FROM users WHERE id = ANY($1::uuid[])', [this.userIds]);
     await this.pool.end();
-    await this.app.close();
+    if (!this.appClosed) {
+      await this.app.close();
+    }
+  }
+
+  /** Shuts the app down the way SIGTERM does; stop() then only cleans up. */
+  closeApp(): Promise<void> {
+    this.appClosed = true;
+    return this.app.close();
   }
 
   /** A user with an NGN wallet, optionally funded through the real admin endpoint. */

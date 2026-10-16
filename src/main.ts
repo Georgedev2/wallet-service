@@ -14,10 +14,11 @@ async function bootstrap() {
   // Render terminates TLS at one proxy hop; without this, req.ip is the proxy's
   // address and the login throttle would be shared by every client.
   app.set('trust proxy', 1);
-  configureApp(app);
+  const config = app.get(ConfigService<Env, true>);
+  configureApp(app, { corsOrigins: config.get('CORS_ORIGINS') });
   setupSwagger(app);
-  // Runs onModuleDestroy hooks (e.g. closing the pg pool) on SIGTERM from Render.
+  // On SIGTERM from Render: stop accepting connections, finish open requests, then close the pg pool.
   app.enableShutdownHooks();
-  await app.listen(app.get(ConfigService<Env, true>).get('PORT'));
+  await app.listen(config.get('PORT'));
 }
 void bootstrap();

@@ -9,6 +9,7 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
 import { IsInt, IsString, Min } from 'class-validator';
 import { Pool } from 'pg';
@@ -100,7 +101,7 @@ describe('common HTTP pipeline (e2e)', () => {
       controllers: [TestController],
       providers: [{ provide: Pool, useValue: pool }],
     }).compile();
-    app = configureApp(moduleRef.createNestApplication({ logger: false }));
+    app = configureApp(moduleRef.createNestApplication<NestExpressApplication>({ logger: false }));
     await app.init();
   });
 

@@ -34,6 +34,8 @@ Compose maps Postgres to host port **5433**, so it doesn't clash with a local Po
 | `ADMIN_FULL_NAME`   | no       | `Administrator`  | Seeded admin's name                            |
 | `TEST_DATABASE_URL` | e2e only |               | e2e tests run against this, never `DATABASE_URL`  |
 | `NODE_ENV`          | no       | `development` | Set `production` on Render (JSON logs, no pino-pretty) |
+| `CORS_ORIGINS`      | no       | (none)        | Comma-separated browser origins, e.g. `https://app.example.com`. Empty: no cross-origin access |
+| `RATE_LIMIT_PER_MINUTE` | no   | `100`         | Requests per minute per IP, on every route         |
 
 The app and the migration runner both validate the environment at startup, and exit if it's invalid.
 
@@ -108,6 +110,8 @@ transferring to him (`403 USER_BLOCKED`).
 - Money is sent and received as a string of kobo digits: `"150000"` is ₦1,500.00.
 - Every money movement needs an `Idempotency-Key` header: 8-128 characters of `A-Z a-z 0-9 _ -`.
 - Every response has an `x-request-id` header, which also appears in the logs. A safe incoming `X-Request-Id` is reused.
+- Request bodies are capped at 10kb (`413 PAYLOAD_TOO_LARGE`). Every route allows `RATE_LIMIT_PER_MINUTE` requests
+  per minute per IP (default 100), then returns `429 TOO_MANY_REQUESTS`; login and signup are stricter.
 - Authenticated routes need `Authorization: Bearer <accessToken>`. A missing or invalid token gets 401 `UNAUTHORIZED`; a non-admin on an admin route gets 403 `FORBIDDEN`.
 
 ## Endpoints
@@ -208,6 +212,14 @@ Errors: `409 ALREADY_BLACKLISTED`, `400 INVALID_EMAIL | INVALID_PHONE | INVALID_
 ### `DELETE /admin/blacklist/:id` (admin)
 
 Returns `204`. Errors: `404 BLACKLIST_ENTRY_NOT_FOUND`, `400 VALIDATION_ERROR` for a malformed id, `401`, `403`.
+
+## Security and operations
+
+- **Logs** never contain passwords, BVNs, tokens, cookies or request bodies (pino `redact`, tested in
+  `src/config/logger.config.spec.ts`). Responses only ever show a BVN masked.
+- **CORS** allows only the origins in `CORS_ORIGINS`. Non-browser clients (curl, Postman) are unaffected.
+- **Shutdown:** on SIGTERM the server stops accepting connections, finishes open requests, then closes the
+  Postgres pool, so a deploy never cuts off a transfer halfway.
 
 ## Migrations
 

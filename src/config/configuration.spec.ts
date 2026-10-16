@@ -28,4 +28,23 @@ describe('validateEnv', () => {
   it('fails when only one of ADMIN_EMAIL / ADMIN_PASSWORD is set', () => {
     expect(() => validateEnv({ ...valid, ADMIN_EMAIL: 'a@b.co' })).toThrow('ADMIN_PASSWORD');
   });
+
+  it('defaults to no CORS origins and 100 requests per minute', () => {
+    expect(validateEnv(valid)).toMatchObject({ CORS_ORIGINS: [], RATE_LIMIT_PER_MINUTE: 100 });
+  });
+
+  it('parses CORS_ORIGINS into a trimmed list', () => {
+    const env = validateEnv({
+      ...valid,
+      CORS_ORIGINS: ' https://a.example.com , http://localhost:5173,',
+    });
+    expect(env.CORS_ORIGINS).toEqual(['https://a.example.com', 'http://localhost:5173']);
+  });
+
+  it.each(['https://a.example.com/', 'a.example.com', 'https://a.example.com/path'])(
+    'rejects %s as a CORS origin',
+    (origin) => {
+      expect(() => validateEnv({ ...valid, CORS_ORIGINS: origin })).toThrow('is not an origin');
+    },
+  );
 });

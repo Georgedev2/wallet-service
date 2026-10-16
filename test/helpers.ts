@@ -1,4 +1,6 @@
 import { INestApplication, Type } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
 import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/app.setup';
@@ -9,7 +11,8 @@ export async function createApp(controllers: Type[] = []): Promise<INestApplicat
     imports: [AppModule],
     controllers,
   }).compile();
-  const app = configureApp(moduleRef.createNestApplication({ logger: false }));
+  const app = moduleRef.createNestApplication<NestExpressApplication>({ logger: false });
+  configureApp(app, { corsOrigins: app.get(ConfigService).get('CORS_ORIGINS') });
   await app.init();
   return app;
 }

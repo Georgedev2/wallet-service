@@ -1,4 +1,4 @@
-import { Global, Inject, Logger, Module, OnModuleDestroy } from '@nestjs/common';
+import { Global, Inject, Logger, Module, OnApplicationShutdown } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Pool } from 'pg';
 import { Env } from '../config/configuration';
@@ -22,10 +22,13 @@ import { PG_POOL, buildPoolConfig } from './database.constants';
   ],
   exports: [PG_POOL],
 })
-export class DatabaseModule implements OnModuleDestroy {
+export class DatabaseModule implements OnApplicationShutdown {
   constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
 
-  async onModuleDestroy(): Promise<void> {
+  // Not onModuleDestroy: that runs before Nest closes the HTTP server, so requests
+  // still in flight would find the pool gone. This hook runs after the server has
+  // stopped accepting connections and finished the open requests.
+  async onApplicationShutdown(): Promise<void> {
     await this.pool.end();
   }
 }

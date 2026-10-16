@@ -39,6 +39,14 @@ export class DomainExceptionFilter implements ExceptionFilter {
       return [status, errorBody(code, httpExceptionMessage(exception))];
     }
 
+    // body-parser rejected the body for being over the limit (app.setup.ts).
+    if (isPayloadTooLarge(exception)) {
+      return [
+        HttpStatus.PAYLOAD_TOO_LARGE,
+        errorBody('PAYLOAD_TOO_LARGE', 'Request body is too large'),
+      ];
+    }
+
     // A unique index caught a duplicate that a pre-check missed (e.g. two
     // signups racing). Constraint names stay in the logs, not the response.
     if (exception instanceof DatabaseError && exception.code === PG_UNIQUE_VIOLATION) {
@@ -55,6 +63,14 @@ export class DomainExceptionFilter implements ExceptionFilter {
       errorBody('INTERNAL_ERROR', 'An unexpected error occurred'),
     ];
   }
+}
+
+function isPayloadTooLarge(exception: unknown): boolean {
+  return (
+    typeof exception === 'object' &&
+    exception !== null &&
+    (exception as { type?: unknown }).type === 'entity.too.large'
+  );
 }
 
 function errorBody(code: string, message: string): ErrorBody {

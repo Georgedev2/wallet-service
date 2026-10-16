@@ -12,6 +12,8 @@ export interface Env {
   ADMIN_PASSWORD?: string;
   ADMIN_PHONE: string;
   ADMIN_FULL_NAME: string;
+  CORS_ORIGINS: string[];
+  RATE_LIMIT_PER_MINUTE: number;
 }
 
 export const envSchema = Joi.object<Env>({
@@ -31,9 +33,30 @@ export const envSchema = Joi.object<Env>({
     .pattern(/^\+[1-9]\d{7,14}$/, 'E.164')
     .default('+2340000000000'),
   ADMIN_FULL_NAME: Joi.string().default('Administrator'),
+  // Comma-separated browser origins allowed by CORS. Empty means no cross-origin access.
+  CORS_ORIGINS: Joi.string().allow('').custom(parseOrigins).default([]),
+  // Per IP, for every route; login and signup have stricter limits of their own.
+  RATE_LIMIT_PER_MINUTE: Joi.number().integer().min(1).default(100),
 })
   // Seeding needs both or neither; one without the other is a misconfiguration.
   .and('ADMIN_EMAIL', 'ADMIN_PASSWORD');
+
+const ORIGIN = /^https?:\/\/[^/\s]+$/;
+
+/** "https://a.com, https://b.com" → ["https://a.com", "https://b.com"]. */
+function parseOrigins(value: string): string[] {
+  const origins = value
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
+  const invalid = origins.find((o) => !ORIGIN.test(o));
+  if (invalid) {
+    throw new Error(
+      `"${invalid}" is not an origin like https://app.example.com (no path or trailing slash)`,
+    );
+  }
+  return origins;
+}
 
 export const envValidationOptions: Joi.ValidationOptions = {
   allowUnknown: true,

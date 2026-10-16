@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { ThrottlerModule } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { LoggerModule } from 'nestjs-pino';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -25,8 +26,13 @@ import { WalletsModule } from './wallets/wallets.module';
       useFactory: (config: ConfigService<Env, true>) => buildLoggerParams(config.get('NODE_ENV')),
     }),
     DatabaseModule,
-    // Global, but only routes with ThrottlerGuard are limited; each sets its own @Throttle.
-    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 10 }]),
+    // Every route, per IP. Login and signup override the limit with a stricter @Throttle.
+    ThrottlerModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService<Env, true>) => [
+        { ttl: 60_000, limit: config.get('RATE_LIMIT_PER_MINUTE') },
+      ],
+    }),
     AuthModule,
     BlacklistModule,
     UsersModule,
@@ -34,6 +40,6 @@ import { WalletsModule } from './wallets/wallets.module';
     TransfersModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, { provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule {}
