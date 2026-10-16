@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { LoggerModule } from 'nestjs-pino';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -8,6 +9,7 @@ import { BlacklistModule } from './blacklist/blacklist.module';
 import { Env, envSchema, envValidationOptions } from './config/configuration';
 import { buildLoggerParams } from './config/logger.config';
 import { DatabaseModule } from './database/database.module';
+import { UsersModule } from './users/users.module';
 
 @Module({
   imports: [
@@ -21,8 +23,11 @@ import { DatabaseModule } from './database/database.module';
       useFactory: (config: ConfigService<Env, true>) => buildLoggerParams(config.get('NODE_ENV')),
     }),
     DatabaseModule,
+    // Global, but only routes with ThrottlerGuard are limited; each sets its own @Throttle.
+    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 10 }]),
     AuthModule,
     BlacklistModule,
+    UsersModule,
   ],
   controllers: [AppController],
   providers: [AppService],

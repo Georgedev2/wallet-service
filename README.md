@@ -57,6 +57,26 @@ The token is an HS256 JWT valid for `JWT_EXPIRES_IN`. Blocked users can log in.
 Errors: `401 INVALID_CREDENTIALS` (same response whether the email is unknown or the password is wrong),
 `400 VALIDATION_ERROR`, and `429 TOO_MANY_REQUESTS` after 5 attempts per minute from one IP.
 
+### `POST /users`
+
+Public signup. Body: `{ "email", "phone", "fullName", "password", "bvn"? }`.
+
+- `password`: 8–256 characters. `phone`: a Nigerian number like `08031234567`, or international format
+  like `+2348031234567`; stored as E.164. `bvn` (optional, 11 digits) is checked against the blacklist
+  and stored; one BVN can belong to only one account. Responses show it masked (`"*******8901"`), or `null`.
+- Creates the user and an NGN wallet in one transaction.
+
+Returns `201` with `{ "data": { "user": { "id", "email", "phone", "fullName", "bvn", "role", "status", "createdAt" },
+"wallet": { "id", "currency": "NGN", "balance": "0" } } }`.
+
+Errors: `403 USER_BLACKLISTED` ("Unable to create account"; doesn't say which identifier matched),
+`409 USER_EXISTS` (email, phone or BVN taken; email is case-insensitive),
+`400 VALIDATION_ERROR | INVALID_PHONE | INVALID_BVN`, `429` after 10 signups per minute from one IP.
+
+### `GET /users/me` (authenticated)
+
+Returns `{ "data": { "user": { ... }, "wallets": [{ "id", "currency", "balance" }] } }`.
+
 ### `POST /admin/blacklist` (admin)
 
 Body: `{ "identityType": "email" | "phone" | "bvn" | "nin", "identityValue": "...", "reason": "..." }`.
