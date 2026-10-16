@@ -35,6 +35,7 @@ describe('Swagger docs (e2e)', () => {
     expect(operations.sort()).toEqual(
       [
         'GET /',
+        'GET /health',
         'POST /auth/login',
         'POST /users',
         'GET /users/me',

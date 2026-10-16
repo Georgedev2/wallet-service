@@ -19,6 +19,7 @@ async function bootstrap() {
   setupSwagger(app);
   // On SIGTERM from Render: stop accepting connections, finish open requests, then close the pg pool.
   app.enableShutdownHooks();
-  await app.listen(config.get('PORT'));
+  // Render sets PORT and routes traffic to it; bind all interfaces, not just localhost.
+  await app.listen(config.get('PORT'), '0.0.0.0');
 }
 void bootstrap();

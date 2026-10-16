@@ -145,6 +145,12 @@ describe('Hardening (e2e)', () => {
       const res = await request(app.getHttpServer()).get('/').expect(429);
       expect(res.body.error.code).toBe('TOO_MANY_REQUESTS');
     });
+
+    it('never throttles /health, so Render can always reach it', async () => {
+      for (let i = 0; i < 5; i++) {
+        await request(app.getHttpServer()).get('/health').expect(200);
+      }
+    });
   });
 
   describe('graceful shutdown', () => {

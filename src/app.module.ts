@@ -10,6 +10,7 @@ import { BlacklistModule } from './blacklist/blacklist.module';
 import { Env, envSchema, envValidationOptions } from './config/configuration';
 import { buildLoggerParams } from './config/logger.config';
 import { DatabaseModule } from './database/database.module';
+import { HealthModule } from './health/health.module';
 import { TransfersModule } from './transfers/transfers.module';
 import { UsersModule } from './users/users.module';
 import { WalletsModule } from './wallets/wallets.module';
@@ -38,6 +39,7 @@ import { WalletsModule } from './wallets/wallets.module';
     UsersModule,
     WalletsModule,
     TransfersModule,
+    HealthModule,
   ],
   controllers: [AppController],
   providers: [AppService, { provide: APP_GUARD, useClass: ThrottlerGuard }],

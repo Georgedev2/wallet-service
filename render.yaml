@@ -1,0 +1,41 @@
+# Render Blueprint: https://render.com/docs/blueprint-spec
+# New > Blueprint in the Render dashboard, pick this repo, then fill in the sync: false values.
+# Node 24 comes from "engines" in package.json.
+
+databases:
+  - name: wallet-db
+    plan: free
+    postgresMajorVersion: "15"
+    databaseName: wallet
+    user: wallet
+
+services:
+  - type: web
+    name: wallet-service
+    runtime: node
+    plan: free
+    # --include=dev: NODE_ENV=production below makes npm ci skip devDependencies,
+    # and the build needs @nestjs/cli and typescript.
+    buildCommand: npm ci --include=dev && npm run build
+    # Migrations are idempotent and guarded by an advisory lock; they also seed the admin.
+    startCommand: npm run migrate:prod && node dist/main.js
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: wallet-db
+          property: connectionString
+      - key: DATABASE_SSL
+        value: "true"
+      - key: NODE_ENV
+        value: production
+      - key: JWT_SECRET
+        generateValue: true
+      # Seeded admin; set both in the dashboard when the Blueprint is created.
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      # Optional: comma-separated browser origins for CORS. Leave empty if no web front end.
+      - key: CORS_ORIGINS
+        sync: false

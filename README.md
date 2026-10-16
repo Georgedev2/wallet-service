@@ -116,6 +116,12 @@ transferring to him (`403 USER_BLOCKED`).
 
 ## Endpoints
 
+### `GET /health`
+
+No auth, never rate-limited. Runs `SELECT 1` (2s timeout) and returns `200` with
+`{ "data": { "status": "ok", "db": "ok" } }`, or `503 DB_UNAVAILABLE` if the database can't be reached.
+Render uses it as the health check.
+
 ### `POST /auth/login`
 
 Body: `{ "email": "...", "password": "..." }`. The email is trimmed and lowercased.
@@ -230,7 +236,32 @@ npm run migrate        # from source (ts-node)
 npm run migrate:prod   # from the build: node dist/database/migrations/run-migrations.js
 ```
 
-The build copies the `.sql` files into `dist/`. On Render, set the pre-deploy command to `npm run migrate:prod`.
+The build copies the `.sql` files into `dist/`. On Render they run on every start (see Deployment).
+
+## Deployment (Render)
+
+`render.yaml` is a Render Blueprint that creates the Postgres database (`wallet-db`) and the web service.
+
+1. Push the repo to GitHub.
+2. In Render: **New > Blueprint**, pick the repo. Render reads `render.yaml`.
+3. Fill in the values it asks for: `ADMIN_EMAIL` and `ADMIN_PASSWORD` (the seeded admin) and, optionally,
+   `CORS_ORIGINS`. `JWT_SECRET` is generated, and `DATABASE_URL` comes from the database.
+4. Once deployed, check `https://<service>.onrender.com/health`, then open `/docs`.
+
+What it runs:
+- Build: `npm ci --include=dev && npm run build` (dev dependencies are needed for the build, and
+  `NODE_ENV=production` would otherwise skip them).
+- Start: `npm run migrate:prod && node dist/main.js`. Migrations are idempotent and lock-guarded, so running
+  them on every start is safe. The app listens on Render's `PORT` on `0.0.0.0`.
+- Health check: `GET /health`. A deploy only goes live once it returns 200.
+
+Free-plan notes: the web service sleeps after 15 minutes idle (the first request takes ~1 minute to wake it), and
+a free Postgres database expires after 30 days.
+
+## CI
+
+`.github/workflows/ci.yml` runs on every push and pull request with a Postgres 15 service:
+`npm run lint:check`, `npm run build`, `npm test`, `npm run test:e2e`.
 
 ## Tests
 
