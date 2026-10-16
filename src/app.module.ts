@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { LoggerModule } from 'nestjs-pino';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { AuthModule } from './auth/auth.module';
 import { Env, envSchema, envValidationOptions } from './config/configuration';
 import { buildLoggerParams } from './config/logger.config';
 import { DatabaseModule } from './database/database.module';
@@ -19,6 +20,7 @@ import { DatabaseModule } from './database/database.module';
       useFactory: (config: ConfigService<Env, true>) => buildLoggerParams(config.get('NODE_ENV')),
     }),
     DatabaseModule,
+    AuthModule,
   ],
   controllers: [AppController],
   providers: [AppService],

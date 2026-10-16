@@ -43,6 +43,19 @@ The app and the migration runner both validate the environment at startup, and e
 - Money is sent and received as a string of kobo digits: `"150000"` is ₦1,500.00.
 - Every money movement needs an `Idempotency-Key` header: 8-128 characters of `A-Z a-z 0-9 _ -`.
 - Every response has an `x-request-id` header, which also appears in the logs. A safe incoming `X-Request-Id` is reused.
+- Authenticated routes need `Authorization: Bearer <accessToken>`. A missing or invalid token gets 401 `UNAUTHORIZED`; a non-admin on an admin route gets 403 `FORBIDDEN`.
+
+## Endpoints
+
+### `POST /auth/login`
+
+Body: `{ "email": "...", "password": "..." }`. The email is trimmed and lowercased.
+
+Returns `200` with `{ "data": { "accessToken": "...", "user": { "id", "email", "fullName", "role", "status" } } }`.
+The token is an HS256 JWT valid for `JWT_EXPIRES_IN`. Blocked users can log in.
+
+Errors: `401 INVALID_CREDENTIALS` (same response whether the email is unknown or the password is wrong),
+`400 VALIDATION_ERROR`, and `429 TOO_MANY_REQUESTS` after 5 attempts per minute from one IP.
 
 ## Migrations
 
@@ -60,6 +73,7 @@ The build copies the `.sql` files into `dist/`. On Render, set the pre-deploy co
 ```bash
 npm test               # unit tests
 npm run test:e2e       # e2e tests against real Postgres (needs docker compose up -d db)
+                       # migrates TEST_DATABASE_URL first (test/global-setup.ts)
 npm run lint
 npm run build
 ```
