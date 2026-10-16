@@ -46,6 +46,62 @@ Money endpoints need a fresh `Idempotency-Key` for each new movement.
 Request schemas come from the DTOs through the `@nestjs/swagger` CLI plugin (`nest-cli.json`), so restart
 `npm run start:dev` after changing plugin settings. For a request-by-request walkthrough, see `rest-client/`.
 
+## Test data: try the API in 5 steps
+
+Use these in Swagger (`/docs`), the REST Client file, or curl. Amounts are kobo strings: `"500000"` is ₦5,000.00.
+
+| Account | Email | Password | Phone | BVN |
+| ------- | ----- | -------- | ----- | --- |
+| Alice | `alice.demo@example.com` | `AliceDemo#2026` | `08030000001` | `22200000001` |
+| Bob | `bob.demo@example.com` | `BobDemo#2026` | `08030000002` | (none) |
+
+These accounts are for testing only. Emails, phones and BVNs must be unique, so if someone has already
+created them on this database, signup returns `409 USER_EXISTS`. Skip to step 2 and log in with the same details.
+
+**1. Sign up both accounts:** `POST /users`
+
+```json
+{ "email": "alice.demo@example.com", "phone": "08030000001", "fullName": "Alice Demo",
+  "password": "AliceDemo#2026", "bvn": "22200000001" }
+```
+
+```json
+{ "email": "bob.demo@example.com", "phone": "08030000002", "fullName": "Bob Demo",
+  "password": "BobDemo#2026" }
+```
+
+Each response includes `data.wallet.id`. Note both wallet ids. You can also get them later from `GET /users/me`.
+
+**2. Log in:** `POST /auth/login` with `{ "email": "alice.demo@example.com", "password": "AliceDemo#2026" }`.
+Copy `data.accessToken`; in Swagger, click **Authorize** and paste it. Tokens last 15 minutes (`JWT_EXPIRES_IN`).
+
+**3. Fund Alice (admin):** log in as the admin (the `ADMIN_EMAIL` / `ADMIN_PASSWORD` the app was seeded with;
+ask the project owner for the deployed app's admin login), then:
+
+```
+POST /admin/wallets/{aliceWalletId}/fund
+Idempotency-Key: fund-alice-demo-0001
+{ "amount": "500000", "narration": "Demo funding" }
+```
+
+**4. Transfer Alice → Bob:** logged in as Alice:
+
+```
+POST /transfers
+Idempotency-Key: alice-to-bob-0001
+{ "sourceWalletId": "{aliceWalletId}", "destinationWalletId": "{bobWalletId}", "amount": "25000", "narration": "Lunch" }
+```
+
+Send the same request again to see an idempotent replay (`200`, `"replayed": true`, money moves once).
+Change the amount but keep the key to see `409 IDEMPOTENCY_KEY_REUSED`. Use a new key for each new transfer.
+
+**5. Check the result:** `GET /wallets/{aliceWalletId}` shows `"475000"` after the first funding and transfer;
+`GET /wallets/{aliceWalletId}/transactions` lists the funding credit and the transfer debit.
+
+To see errors, try sending more than the balance (`422 INSUFFICIENT_FUNDS`), sending from Bob's token using
+Alice's wallet (`403 FORBIDDEN`), or blocking Bob as admin (`PATCH /admin/users/{bobUserId}/block`) and then
+transferring to him (`403 USER_BLOCKED`).
+
 ## API conventions
 
 - Success: `{ "data": ... }`. Error: `{ "error": { "code": "INSUFFICIENT_FUNDS", "message": "..." } }`.
