@@ -1,0 +1,567 @@
+# Wallet Service: manual API tests for the VS Code REST Client extension (humao.rest-client).
+#
+# Setup: copy rest-client/.env.example to rest-client/.env and fill it in (see rest-client/README.md).
+# Run the requests TOP TO BOTTOM. Later requests reuse ids and tokens from earlier responses.
+# Each run signs up new users (Alice and Bob), so the file can be re-run as often as you like.
+# Money is integer kobo sent as a string: "500000" = ₦5,000.00.
+
+@baseUrl = {{$dotenv BASE_URL}}
+@adminEmail = {{$dotenv ADMIN_EMAIL}}
+@adminPassword = {{$dotenv ADMIN_PASSWORD}}
+@password = Passw0rd!Test
+
+# Tokens and ids captured from earlier responses
+@adminToken = {{adminLogin.response.body.$.data.accessToken}}
+@aliceToken = {{aliceLogin.response.body.$.data.accessToken}}
+@bobToken = {{bobLogin.response.body.$.data.accessToken}}
+@aliceId = {{aliceSignup.response.body.$.data.user.id}}
+@bobId = {{bobSignup.response.body.$.data.user.id}}
+@aliceWallet = {{aliceSignup.response.body.$.data.wallet.id}}
+@bobWallet = {{bobSignup.response.body.$.data.wallet.id}}
+
+
+#####################################################################
+# 0. App
+#####################################################################
+
+### Root: 200, plain text
+GET {{baseUrl}}/
+
+
+#####################################################################
+# 1. Signup: POST /users
+#####################################################################
+
+### Sign up Alice: 201, returns the user and an NGN wallet with balance "0"
+# @name aliceSignup
+POST {{baseUrl}}/users
+Content-Type: application/json
+
+{
+  "email": "alice-{{$randomInt 100000 999999}}@example.com",
+  "phone": "0803{{$randomInt 1000000 9999999}}",
+  "fullName": "Alice Test",
+  "password": "{{password}}",
+  "bvn": "2{{$randomInt 1000000000 9999999999}}"
+}
+
+### Sign up Bob (no BVN): 201
+# @name bobSignup
+POST {{baseUrl}}/users
+Content-Type: application/json
+
+{
+  "email": "bob-{{$randomInt 100000 999999}}@example.com",
+  "phone": "+234805{{$randomInt 1000000 9999999}}",
+  "fullName": "Bob Test",
+  "password": "{{password}}"
+}
+
+### Duplicate email (Alice's, different case): 409 USER_EXISTS
+POST {{baseUrl}}/users
+Content-Type: application/json
+
+{
+  "email": "{{aliceSignup.response.body.$.data.user.email}}",
+  "phone": "0807{{$randomInt 1000000 9999999}}",
+  "fullName": "Alice Again",
+  "password": "{{password}}"
+}
+
+### Invalid phone: 400 INVALID_PHONE
+POST {{baseUrl}}/users
+Content-Type: application/json
+
+{
+  "email": "badphone-{{$randomInt 100000 999999}}@example.com",
+  "phone": "12345",
+  "fullName": "Bad Phone",
+  "password": "{{password}}"
+}
+
+### Invalid BVN (not 11 digits): 400 INVALID_BVN
+POST {{baseUrl}}/users
+Content-Type: application/json
+
+{
+  "email": "badbvn-{{$randomInt 100000 999999}}@example.com",
+  "phone": "0809{{$randomInt 1000000 9999999}}",
+  "fullName": "Bad BVN",
+  "password": "{{password}}",
+  "bvn": "123"
+}
+
+### Validation: short password, missing fullName: 400 VALIDATION_ERROR
+POST {{baseUrl}}/users
+Content-Type: application/json
+
+{
+  "email": "not-an-email",
+  "phone": "08031234567",
+  "password": "short"
+}
+
+
+#####################################################################
+# 2. Auth: POST /auth/login  (5 attempts per minute per IP)
+#####################################################################
+
+### Admin login: 200, returns accessToken
+# @name adminLogin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{adminEmail}}",
+  "password": "{{adminPassword}}"
+}
+
+### Alice login: 200
+# @name aliceLogin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{aliceSignup.response.body.$.data.user.email}}",
+  "password": "{{password}}"
+}
+
+### Bob login: 200
+# @name bobLogin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{bobSignup.response.body.$.data.user.email}}",
+  "password": "{{password}}"
+}
+
+### Wrong password: 401 INVALID_CREDENTIALS (same response as an unknown email)
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{aliceSignup.response.body.$.data.user.email}}",
+  "password": "wrong-password"
+}
+
+
+#####################################################################
+# 3. Current user: GET /users/me
+#####################################################################
+
+### Alice's profile and wallets: 200, BVN masked like "*******1234"
+GET {{baseUrl}}/users/me
+Authorization: Bearer {{aliceToken}}
+
+### No token: 401 UNAUTHORIZED
+GET {{baseUrl}}/users/me
+
+
+#####################################################################
+# 4. Admin funding: POST /admin/wallets/:id/fund
+#####################################################################
+
+### Fund Alice ₦5,000: 201, replayed: false
+POST {{baseUrl}}/admin/wallets/{{aliceWallet}}/fund
+Authorization: Bearer {{adminToken}}
+Idempotency-Key: fund-{{aliceWallet}}
+Content-Type: application/json
+
+{
+  "amount": "500000",
+  "narration": "Initial funding"
+}
+
+### Same key, same body: 200, replayed: true, same reference, balance unchanged
+POST {{baseUrl}}/admin/wallets/{{aliceWallet}}/fund
+Authorization: Bearer {{adminToken}}
+Idempotency-Key: fund-{{aliceWallet}}
+Content-Type: application/json
+
+{
+  "amount": "500000",
+  "narration": "Initial funding"
+}
+
+### Same key, different amount: 409 IDEMPOTENCY_KEY_REUSED
+POST {{baseUrl}}/admin/wallets/{{aliceWallet}}/fund
+Authorization: Bearer {{adminToken}}
+Idempotency-Key: fund-{{aliceWallet}}
+Content-Type: application/json
+
+{
+  "amount": "999",
+  "narration": "Initial funding"
+}
+
+### Missing Idempotency-Key: 400 MISSING_IDEMPOTENCY_KEY
+POST {{baseUrl}}/admin/wallets/{{aliceWallet}}/fund
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "amount": "1000"
+}
+
+### Amount as a number or decimal: 400 INVALID_AMOUNT
+POST {{baseUrl}}/admin/wallets/{{aliceWallet}}/fund
+Authorization: Bearer {{adminToken}}
+Idempotency-Key: {{$guid}}
+Content-Type: application/json
+
+{
+  "amount": "10.50"
+}
+
+### Unknown wallet: 404 WALLET_NOT_FOUND
+POST {{baseUrl}}/admin/wallets/00000000-0000-4000-8000-000000000000/fund
+Authorization: Bearer {{adminToken}}
+Idempotency-Key: {{$guid}}
+Content-Type: application/json
+
+{
+  "amount": "1000"
+}
+
+### Non-admin (Alice): 403 FORBIDDEN
+POST {{baseUrl}}/admin/wallets/{{aliceWallet}}/fund
+Authorization: Bearer {{aliceToken}}
+Idempotency-Key: {{$guid}}
+Content-Type: application/json
+
+{
+  "amount": "1000"
+}
+
+
+#####################################################################
+# 5. Transfers: POST /transfers
+#####################################################################
+
+### Alice → Bob ₦250: 201, balanceAfter "475000", replayed: false
+POST {{baseUrl}}/transfers
+Authorization: Bearer {{aliceToken}}
+Idempotency-Key: alice-transfer-0001
+Content-Type: application/json
+
+{
+  "sourceWalletId": "{{aliceWallet}}",
+  "destinationWalletId": "{{bobWallet}}",
+  "amount": "25000",
+  "narration": "Lunch"
+}
+
+### Same key, same body: 200, replayed: true, money moves once
+POST {{baseUrl}}/transfers
+Authorization: Bearer {{aliceToken}}
+Idempotency-Key: alice-transfer-0001
+Content-Type: application/json
+
+{
+  "sourceWalletId": "{{aliceWallet}}",
+  "destinationWalletId": "{{bobWallet}}",
+  "amount": "25000",
+  "narration": "Lunch"
+}
+
+### Same key, different narration: 409 IDEMPOTENCY_KEY_REUSED
+POST {{baseUrl}}/transfers
+Authorization: Bearer {{aliceToken}}
+Idempotency-Key: alice-transfer-0001
+Content-Type: application/json
+
+{
+  "sourceWalletId": "{{aliceWallet}}",
+  "destinationWalletId": "{{bobWallet}}",
+  "amount": "25000",
+  "narration": "Dinner"
+}
+
+### More than the balance: 422 INSUFFICIENT_FUNDS
+POST {{baseUrl}}/transfers
+Authorization: Bearer {{aliceToken}}
+Idempotency-Key: {{$guid}}
+Content-Type: application/json
+
+{
+  "sourceWalletId": "{{aliceWallet}}",
+  "destinationWalletId": "{{bobWallet}}",
+  "amount": "999999999"
+}
+
+### To the same wallet: 422 SAME_WALLET
+POST {{baseUrl}}/transfers
+Authorization: Bearer {{aliceToken}}
+Idempotency-Key: {{$guid}}
+Content-Type: application/json
+
+{
+  "sourceWalletId": "{{aliceWallet}}",
+  "destinationWalletId": "{{aliceWallet}}",
+  "amount": "100"
+}
+
+### From someone else's wallet (Bob sends from Alice's): 403 FORBIDDEN
+POST {{baseUrl}}/transfers
+Authorization: Bearer {{bobToken}}
+Idempotency-Key: {{$guid}}
+Content-Type: application/json
+
+{
+  "sourceWalletId": "{{aliceWallet}}",
+  "destinationWalletId": "{{bobWallet}}",
+  "amount": "100"
+}
+
+### Unknown destination: 404 WALLET_NOT_FOUND
+POST {{baseUrl}}/transfers
+Authorization: Bearer {{aliceToken}}
+Idempotency-Key: {{$guid}}
+Content-Type: application/json
+
+{
+  "sourceWalletId": "{{aliceWallet}}",
+  "destinationWalletId": "00000000-0000-4000-8000-000000000000",
+  "amount": "100"
+}
+
+### Zero amount: 400 INVALID_AMOUNT
+POST {{baseUrl}}/transfers
+Authorization: Bearer {{aliceToken}}
+Idempotency-Key: {{$guid}}
+Content-Type: application/json
+
+{
+  "sourceWalletId": "{{aliceWallet}}",
+  "destinationWalletId": "{{bobWallet}}",
+  "amount": "0"
+}
+
+### Missing Idempotency-Key: 400 MISSING_IDEMPOTENCY_KEY
+POST {{baseUrl}}/transfers
+Authorization: Bearer {{aliceToken}}
+Content-Type: application/json
+
+{
+  "sourceWalletId": "{{aliceWallet}}",
+  "destinationWalletId": "{{bobWallet}}",
+  "amount": "100"
+}
+
+
+#####################################################################
+# 6. Wallets: GET /wallets/:id and /wallets/:id/transactions
+#####################################################################
+
+### Alice's wallet: 200, balance "475000", balanceFormatted "4750.00"
+GET {{baseUrl}}/wallets/{{aliceWallet}}
+Authorization: Bearer {{aliceToken}}
+
+### Bob's wallet as admin: 200, balance "25000"
+GET {{baseUrl}}/wallets/{{bobWallet}}
+Authorization: Bearer {{adminToken}}
+
+### Alice's wallet as Bob: 404 WALLET_NOT_FOUND (doesn't reveal that it exists)
+GET {{baseUrl}}/wallets/{{aliceWallet}}
+Authorization: Bearer {{bobToken}}
+
+### Alice's history, page 1 of 1 item: 200, newest first (the transfer debit), nextCursor set
+# @name aliceHistory
+GET {{baseUrl}}/wallets/{{aliceWallet}}/transactions?limit=1
+Authorization: Bearer {{aliceToken}}
+
+### Alice's history, page 2: 200, the funding credit, nextCursor null
+GET {{baseUrl}}/wallets/{{aliceWallet}}/transactions?limit=1&cursor={{aliceHistory.response.body.$.data.nextCursor}}
+Authorization: Bearer {{aliceToken}}
+
+### Limit out of range: 400 VALIDATION_ERROR
+GET {{baseUrl}}/wallets/{{aliceWallet}}/transactions?limit=500
+Authorization: Bearer {{aliceToken}}
+
+
+#####################################################################
+# 7. Admin block / unblock: /admin/users/:id/...
+#####################################################################
+
+### Block Bob: 200, status "blocked", blockedReason set
+PATCH {{baseUrl}}/admin/users/{{bobId}}/block
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "reason": "Suspicious activity (REST Client test)"
+}
+
+### Block Bob again: 409 ALREADY_BLOCKED
+PATCH {{baseUrl}}/admin/users/{{bobId}}/block
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "reason": "Again"
+}
+
+### Transfer to blocked Bob: 403 USER_BLOCKED
+POST {{baseUrl}}/transfers
+Authorization: Bearer {{aliceToken}}
+Idempotency-Key: {{$guid}}
+Content-Type: application/json
+
+{
+  "sourceWalletId": "{{aliceWallet}}",
+  "destinationWalletId": "{{bobWallet}}",
+  "amount": "100"
+}
+
+### Blocked Bob can still view his data: 200, status "blocked"
+GET {{baseUrl}}/users/me
+Authorization: Bearer {{bobToken}}
+
+### Blocked Bob cannot send: 403 USER_BLOCKED
+POST {{baseUrl}}/transfers
+Authorization: Bearer {{bobToken}}
+Idempotency-Key: {{$guid}}
+Content-Type: application/json
+
+{
+  "sourceWalletId": "{{bobWallet}}",
+  "destinationWalletId": "{{aliceWallet}}",
+  "amount": "100"
+}
+
+### Unblock Bob: 200, status "active"
+PATCH {{baseUrl}}/admin/users/{{bobId}}/unblock
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "reason": "Cleared after review"
+}
+
+### Unblock Bob again: 409 NOT_BLOCKED
+PATCH {{baseUrl}}/admin/users/{{bobId}}/unblock
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "reason": "Again"
+}
+
+### Bob's status history: 200, [unblocked, blocked], newest first
+GET {{baseUrl}}/admin/users/{{bobId}}/status-history
+Authorization: Bearer {{adminToken}}
+
+### Missing reason: 400 VALIDATION_ERROR
+PATCH {{baseUrl}}/admin/users/{{bobId}}/block
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{}
+
+### Unknown user: 404 USER_NOT_FOUND
+PATCH {{baseUrl}}/admin/users/00000000-0000-4000-8000-000000000000/block
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "reason": "Test"
+}
+
+### Non-admin (Alice) blocks Bob: 403 FORBIDDEN
+PATCH {{baseUrl}}/admin/users/{{bobId}}/block
+Authorization: Bearer {{aliceToken}}
+Content-Type: application/json
+
+{
+  "reason": "Test"
+}
+
+
+#####################################################################
+# 8. Blacklist: POST /admin/blacklist, DELETE /admin/blacklist/:id
+#####################################################################
+
+### Blacklist an email (stored lowercased and trimmed): 201
+# @name blacklistAdd
+POST {{baseUrl}}/admin/blacklist
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "identityType": "email",
+  "identityValue": "  Fraud-{{$randomInt 100000 999999}}@Example.com ",
+  "reason": "Known fraud (REST Client test)"
+}
+
+### Same entry again: 409 ALREADY_BLACKLISTED
+POST {{baseUrl}}/admin/blacklist
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "identityType": "email",
+  "identityValue": "{{blacklistAdd.response.body.$.data.identityValue}}",
+  "reason": "Duplicate"
+}
+
+### Sign up with the blacklisted email: 403 USER_BLACKLISTED
+POST {{baseUrl}}/users
+Content-Type: application/json
+
+{
+  "email": "{{blacklistAdd.response.body.$.data.identityValue}}",
+  "phone": "0802{{$randomInt 1000000 9999999}}",
+  "fullName": "Fraud Test",
+  "password": "{{password}}"
+}
+
+### Blacklist a phone in local format (stored as E.164 +234...): 201
+# @name blacklistPhone
+POST {{baseUrl}}/admin/blacklist
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "identityType": "phone",
+  "identityValue": "0701 {{$randomInt 100 999}} {{$randomInt 1000 9999}}",
+  "reason": "Known fraud (REST Client test)"
+}
+
+### Invalid NIN: 400 INVALID_NIN
+POST {{baseUrl}}/admin/blacklist
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "identityType": "nin",
+  "identityValue": "12ab",
+  "reason": "Test"
+}
+
+### Remove the email entry: 204
+DELETE {{baseUrl}}/admin/blacklist/{{blacklistAdd.response.body.$.data.id}}
+Authorization: Bearer {{adminToken}}
+
+### Remove the phone entry: 204
+DELETE {{baseUrl}}/admin/blacklist/{{blacklistPhone.response.body.$.data.id}}
+Authorization: Bearer {{adminToken}}
+
+### Remove it again: 404 BLACKLIST_ENTRY_NOT_FOUND
+DELETE {{baseUrl}}/admin/blacklist/{{blacklistAdd.response.body.$.data.id}}
+Authorization: Bearer {{adminToken}}
+
+### Malformed id: 400 VALIDATION_ERROR
+DELETE {{baseUrl}}/admin/blacklist/abc
+Authorization: Bearer {{adminToken}}
+
+### Non-admin (Alice): 403 FORBIDDEN
+POST {{baseUrl}}/admin/blacklist
+Authorization: Bearer {{aliceToken}}
+Content-Type: application/json
+
+{
+  "identityType": "email",
+  "identityValue": "x@example.com",
+  "reason": "Test"
+}
