@@ -33,9 +33,16 @@ Compose maps Postgres to host port **5433**, so it doesn't clash with a local Po
 | `ADMIN_PHONE`       | no       | `+2340000000000` | Seeded admin's phone (E.164)                   |
 | `ADMIN_FULL_NAME`   | no       | `Administrator`  | Seeded admin's name                            |
 | `TEST_DATABASE_URL` | e2e only |               | e2e tests run against this, never `DATABASE_URL`  |
-| `NODE_ENV`          | no       | `development` |                                                   |
+| `NODE_ENV`          | no       | `development` | Set `production` on Render (JSON logs, no pino-pretty) |
 
 The app and the migration runner both validate the environment at startup, and exit if it's invalid.
+
+## API conventions
+
+- Success: `{ "data": ... }`. Error: `{ "error": { "code": "INSUFFICIENT_FUNDS", "message": "..." } }`.
+- Money is sent and received as a string of kobo digits: `"150000"` is ₦1,500.00.
+- Every money movement needs an `Idempotency-Key` header: 8-128 characters of `A-Z a-z 0-9 _ -`.
+- Every response has an `x-request-id` header, which also appears in the logs. A safe incoming `X-Request-Id` is reused.
 
 ## Migrations
 
