@@ -10,6 +10,7 @@ import { Env, envSchema, envValidationOptions } from './config/configuration';
 import { buildLoggerParams } from './config/logger.config';
 import { DatabaseModule } from './database/database.module';
 import { UsersModule } from './users/users.module';
+import { WalletsModule } from './wallets/wallets.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { UsersModule } from './users/users.module';
     AuthModule,
     BlacklistModule,
     UsersModule,
+    WalletsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

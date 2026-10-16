@@ -90,6 +90,30 @@ Errors: `409 ALREADY_BLOCKED` / `409 NOT_BLOCKED`, `422 CANNOT_BLOCK_SELF`, `404
 
 Returns the block/unblock events, newest first: `[{ "id", "action", "reason", "performedBy", "createdAt" }]`.
 
+### `GET /wallets/:id` (owner or admin)
+
+Returns `{ "id", "userId", "currency", "balance": "150050", "balanceFormatted": "1500.50", "status", "createdAt", "updatedAt" }`.
+Anyone else gets `404 WALLET_NOT_FOUND`, the same as for a wallet that doesn't exist.
+
+### `GET /wallets/:id/transactions?limit=20&cursor=...` (owner or admin)
+
+Newest first. Returns `{ "items": [...], "nextCursor": "..." | null }`; pass `nextCursor` back as `cursor`
+for the next page. Pages are stable: new entries never shift or repeat later pages. `limit` is 1–100 (default 20).
+Each item: `reference`, `type` (`funding` | `transfer`), `direction` (`credit` | `debit`), `amount`,
+`balanceAfter`, `counterpartyWalletId` (null for funding), `narration`, `createdAt`.
+
+### `POST /admin/wallets/:id/fund` (admin, `Idempotency-Key` required)
+
+Body: `{ "amount": "150000", "narration"?: "..." }` (narration max 140 characters).
+Returns `201` with `{ "reference", "type": "funding", "walletId", "amount", "currency", "narration", "status",
+"balanceAfter", "createdAt", "replayed": false }`.
+
+Repeating the request with the same key returns `200` with the original body and `"replayed": true`; the
+wallet is credited once. The same key with a different wallet, amount or narration gets `409 IDEMPOTENCY_KEY_REUSED`.
+
+Errors: `404 WALLET_NOT_FOUND`, `422 USER_BLOCKED` (owner blocked), `422 WALLET_FROZEN`,
+`400 INVALID_AMOUNT | MISSING_IDEMPOTENCY_KEY | INVALID_IDEMPOTENCY_KEY`, `401`, `403`.
+
 ### `POST /admin/blacklist` (admin)
 
 Body: `{ "identityType": "email" | "phone" | "bvn" | "nin", "identityValue": "...", "reason": "..." }`.
