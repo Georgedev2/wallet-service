@@ -1,5 +1,13 @@
 import { Transform } from 'class-transformer';
-import { IsEmail, IsNotEmpty, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import {
+  IsEmail,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 import { normalizeEmail } from '../common/utils/normalize';
 
 const trim = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value);
@@ -32,4 +40,17 @@ export class SignupDto {
   @IsString()
   @MaxLength(32)
   bvn?: string;
+}
+
+export class StatusChangeDto {
+  @Transform(trim)
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(500)
+  reason!: string;
+}
+
+export class UserIdParams {
+  @IsUUID('all', { message: 'id must be a UUID' })
+  id!: string;
 }

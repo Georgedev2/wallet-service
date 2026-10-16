@@ -88,6 +88,8 @@ describe('users (e2e)', () => {
           bvn: null,
           role: 'user',
           status: 'active',
+          blockedReason: null,
+          blockedAt: null,
           createdAt: expect.any(String),
         },
         wallet: { id: expect.any(String), currency: 'NGN', balance: '0' },

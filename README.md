@@ -66,7 +66,7 @@ Public signup. Body: `{ "email", "phone", "fullName", "password", "bvn"? }`.
   and stored; one BVN can belong to only one account. Responses show it masked (`"*******8901"`), or `null`.
 - Creates the user and an NGN wallet in one transaction.
 
-Returns `201` with `{ "data": { "user": { "id", "email", "phone", "fullName", "bvn", "role", "status", "createdAt" },
+Returns `201` with `{ "data": { "user": { "id", "email", "phone", "fullName", "bvn", "role", "status", "blockedReason", "blockedAt", "createdAt" },
 "wallet": { "id", "currency": "NGN", "balance": "0" } } }`.
 
 Errors: `403 USER_BLACKLISTED` ("Unable to create account"; doesn't say which identifier matched),
@@ -76,6 +76,19 @@ Errors: `403 USER_BLACKLISTED` ("Unable to create account"; doesn't say which id
 ### `GET /users/me` (authenticated)
 
 Returns `{ "data": { "user": { ... }, "wallets": [{ "id", "currency", "balance" }] } }`.
+
+### `PATCH /admin/users/:id/block` and `PATCH /admin/users/:id/unblock` (admin)
+
+Body: `{ "reason": "..." }` (required, max 500 characters). Returns `200` with the updated user.
+Each change writes a `user_status_events` row recording the acting admin. Blocked users can still log in
+and view their data, but can't send or receive transfers.
+
+Errors: `409 ALREADY_BLOCKED` / `409 NOT_BLOCKED`, `422 CANNOT_BLOCK_SELF`, `404 USER_NOT_FOUND`,
+`400 VALIDATION_ERROR` (malformed id or reason), `401`, `403`.
+
+### `GET /admin/users/:id/status-history` (admin)
+
+Returns the block/unblock events, newest first: `[{ "id", "action", "reason", "performedBy", "createdAt" }]`.
 
 ### `POST /admin/blacklist` (admin)
 

@@ -15,6 +15,19 @@ export interface PublicUser {
   bvn: string | null;
   role: Role;
   status: UserStatus;
+  /** Set exactly when status is 'blocked'; blocked users can see why. */
+  blockedReason: string | null;
+  blockedAt: Date | null;
+  createdAt: Date;
+}
+
+export type StatusAction = 'blocked' | 'unblocked';
+
+export interface StatusEvent {
+  id: string; // BIGSERIAL; pg returns it as a string
+  action: StatusAction;
+  reason: string | null;
+  performedBy: string;
   createdAt: Date;
 }
 
@@ -37,7 +50,8 @@ export interface NewUser {
 
 const PUBLIC_COLUMNS = `id, email, phone, full_name AS "fullName",
                         '*******' || right(bvn, 4) AS bvn,
-                        role, status, created_at AS "createdAt"`;
+                        role, status, blocked_reason AS "blockedReason",
+                        blocked_at AS "blockedAt", created_at AS "createdAt"`;
 
 @Injectable()
 export class UsersRepository {
@@ -71,5 +85,59 @@ export class UsersRepository {
       [user.email, user.phone, user.fullName, user.passwordHash, user.bvn],
     );
     return rows[0];
+  }
+
+  /** Locks the user row until the caller's transaction ends. Null if no such user. */
+  async lockStatus(client: PoolClient, id: string): Promise<{ status: UserStatus } | null> {
+    const { rows } = await client.query<{ status: UserStatus }>(
+      'SELECT status FROM users WHERE id = $1 FOR UPDATE',
+      [id],
+    );
+    return rows[0] ?? null;
+  }
+
+  async block(client: PoolClient, id: string, reason: string): Promise<PublicUser> {
+    const { rows } = await client.query<PublicUser>(
+      `UPDATE users
+          SET status = 'blocked', blocked_reason = $2, blocked_at = now(), updated_at = now()
+        WHERE id = $1
+        RETURNING ${PUBLIC_COLUMNS}`,
+      [id, reason],
+    );
+    return rows[0];
+  }
+
+  async unblock(client: PoolClient, id: string): Promise<PublicUser> {
+    const { rows } = await client.query<PublicUser>(
+      `UPDATE users
+          SET status = 'active', blocked_reason = NULL, blocked_at = NULL, updated_at = now()
+        WHERE id = $1
+        RETURNING ${PUBLIC_COLUMNS}`,
+      [id],
+    );
+    return rows[0];
+  }
+
+  async insertStatusEvent(
+    client: PoolClient,
+    event: { userId: string; action: StatusAction; reason: string; performedBy: string },
+  ): Promise<void> {
+    await client.query(
+      `INSERT INTO user_status_events (user_id, action, reason, performed_by)
+       VALUES ($1, $2, $3, $4)`,
+      [event.userId, event.action, event.reason, event.performedBy],
+    );
+  }
+
+  /** Newest first. */
+  async findStatusEvents(userId: string): Promise<StatusEvent[]> {
+    const { rows } = await this.pool.query<StatusEvent>(
+      `SELECT id, action, reason, performed_by AS "performedBy", created_at AS "createdAt"
+         FROM user_status_events
+        WHERE user_id = $1
+        ORDER BY created_at DESC, id DESC`,
+      [userId],
+    );
+    return rows;
   }
 }
