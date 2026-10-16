@@ -2,6 +2,7 @@
 # env
 .env
 CLAUDE.md
+IMPLEMENTATION_PLAN.md
 node_modules/
 dist/
 coverage/

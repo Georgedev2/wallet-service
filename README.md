@@ -57,6 +57,21 @@ The token is an HS256 JWT valid for `JWT_EXPIRES_IN`. Blocked users can log in.
 Errors: `401 INVALID_CREDENTIALS` (same response whether the email is unknown or the password is wrong),
 `400 VALIDATION_ERROR`, and `429 TOO_MANY_REQUESTS` after 5 attempts per minute from one IP.
 
+### `POST /admin/blacklist` (admin)
+
+Body: `{ "identityType": "email" | "phone" | "bvn" | "nin", "identityValue": "...", "reason": "..." }`.
+
+The value is normalised before it's stored: emails are trimmed and lowercased; phones become E.164,
+with Nigerian local numbers converted (`0803 123 4567` → `+2348031234567`); BVN and NIN keep only
+their 11 digits. Returns `201` with the entry. Its `id` is a string.
+
+Errors: `409 ALREADY_BLACKLISTED`, `400 INVALID_EMAIL | INVALID_PHONE | INVALID_BVN | INVALID_NIN | VALIDATION_ERROR`,
+`401`, `403 FORBIDDEN`.
+
+### `DELETE /admin/blacklist/:id` (admin)
+
+Returns `204`. Errors: `404 BLACKLIST_ENTRY_NOT_FOUND`, `400 VALIDATION_ERROR` for a malformed id, `401`, `403`.
+
 ## Migrations
 
 SQL files in `src/database/migrations/` are applied in filename order. Each one runs in its own transaction and is recorded in `schema_migrations`. A Postgres advisory lock stops two deploys from running migrations at the same time.

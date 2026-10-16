@@ -1,15 +1,13 @@
 import { randomInt, randomUUID } from 'crypto';
 import { Controller, Get, INestApplication, UseGuards } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { Test } from '@nestjs/testing';
 import * as argon2 from 'argon2';
 import { Pool } from 'pg';
 import * as request from 'supertest';
-import { AppModule } from '../src/app.module';
-import { configureApp } from '../src/app.setup';
 import { AuthUser, CurrentUser } from '../src/common/decorators/current-user.decorator';
 import { AdminGuard } from '../src/common/guards/admin.guard';
 import { JwtAuthGuard } from '../src/common/guards/jwt-auth.guard';
+import { createApp as createAppWith } from './helpers';
 
 /** Protected routes for exercising the guards; no real ones exist yet. */
 @Controller('probe')
@@ -27,15 +25,7 @@ class ProbeController {
   }
 }
 
-async function createApp(): Promise<INestApplication> {
-  const moduleRef = await Test.createTestingModule({
-    imports: [AppModule],
-    controllers: [ProbeController],
-  }).compile();
-  const app = configureApp(moduleRef.createNestApplication({ logger: false }));
-  await app.init();
-  return app;
-}
+const createApp = () => createAppWith([ProbeController]);
 
 const PASSWORD = 'correct horse battery staple';
 
