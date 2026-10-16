@@ -164,3 +164,8 @@ npm run test:e2e       # e2e tests against real Postgres (needs docker compose u
 npm run lint
 npm run build
 ```
+
+`test/transfers.concurrency.e2e-spec.ts` and `test/idempotency.e2e-spec.ts` fire parallel requests at the real
+database: 50 transfers racing to overspend one balance, 100 opposing transfers that would deadlock without
+ordered locking, and the same `Idempotency-Key` sent 20 times at once. After each test they check that every
+balance equals the sum of its ledger entries, and that every transfer has exactly one debit and one credit.
